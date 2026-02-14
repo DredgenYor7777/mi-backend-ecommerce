@@ -21,17 +21,17 @@ app.use('/images', express.static(path.join(__dirname, 'public/images')));
 
 // 3. CONFIGURACIÓN DE MULTER (Dónde y cómo guardar)
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, 'public/images'); // Carpeta destino
-  },
-  filename: (req, file, cb) => {
-    // Generamos un nombre único: timestamp + extensión original (ej: 1283123-foto.jpg)
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
+    destination: (req, file, cb) => {
+        cb(null, 'public/images'); // Carpeta destino
+    },
+    filename: (req, file, cb) => {
+        // Generamos un nombre único: timestamp + extensión original (ej: 1283123-foto.jpg)
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        cb(null, uniqueSuffix + path.extname(file.originalname));
+    }
 });
 
-const upload = multer({ storage: storage });    
+const upload = multer({ storage: storage });
 
 // INICIALIZAMOS LA DB AL ARRANCAR
 inicializarDB();
@@ -48,13 +48,13 @@ inicializarDB();
 // A. Obtener TODOS (GET)
 app.get('/api/productos', async (req, res) => {
     try {
-        const busqueda = req.query.q; 
+        const busqueda = req.query.q;
         if (busqueda) {
             // En Postgres usamos $1, $2 en lugar de ?
             // ILIKE es como LIKE pero ignora mayúsculas/minúsculas (Mejor que SQLite)
             const resultado = await query(
-                'SELECT * FROM productos WHERE nombre ILIKE $1', 
-                [`%${busqueda}%`] 
+                'SELECT * FROM productos WHERE nombre ILIKE $1',
+                [`%${busqueda}%`]
             );
             res.json(resultado.rows); // Postgres devuelve los datos en .rows
         } else {
@@ -86,9 +86,15 @@ app.get('/api/productos/:id', async (req, res) => {
 app.post('/api/productos', upload.single('imagen'), async (req, res) => {
     try {
         const { nombre, precio, descripcion, categoria } = req.body;
-        let imagenUrl = null;
-        if (req.file) imagenUrl = `http://localhost:3000/images/${req.file.filename}`;
+        // let imagenUrl = null;
+        //if (req.file) imagenUrl = `http://localhost:3000/images/${req.file.filename}`;
 
+        let imagenUrl = null;
+        if (req.file) {
+            // req.get('host') obtiene automáticamente "localhost:3000" o "tu-api.onrender.com"
+            const urlBase = `${req.protocol}://${req.get('host')}`;
+            imagenUrl = `${urlBase}/images/${req.file.filename}`;
+        }
         // RETURNING * nos devuelve el producto creado inmediatamente
         const resultado = await query(
             `INSERT INTO productos (nombre, precio, descripcion, categoria, imagen) 
@@ -122,12 +128,14 @@ app.put('/api/productos/:id', upload.single('imagen'), async (req, res) => {
     try {
         const id = req.params.id;
         const { nombre, precio, descripcion, categoria } = req.body;
-        
+
         let sql = '';
+        let imagenUrl = null;
         let params = [];
 
         if (req.file) {
-            const imagenUrl = `http://localhost:3000/images/${req.file.filename}`;
+            const urlBase = `${req.protocol}://${req.get('host')}`;
+            imagenUrl = `${urlBase}/images/${req.file.filename}`;
             sql = `UPDATE productos SET nombre=$1, precio=$2, descripcion=$3, categoria=$4, imagen=$5 WHERE id=$6`;
             params = [nombre, precio, descripcion, categoria, imagenUrl, id];
         } else {
@@ -136,7 +144,7 @@ app.put('/api/productos/:id', upload.single('imagen'), async (req, res) => {
         }
 
         const resultado = await query(sql, params);
-        
+
         if (resultado.rowCount === 0) {
             return res.status(404).json({ error: "Producto no encontrado" });
         }

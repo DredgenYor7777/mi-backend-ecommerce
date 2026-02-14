@@ -1,10 +1,9 @@
 import express from 'express';
 import cors from 'cors';
-import multer from 'multer'; // <--- 1. IMPORTAR MULTER
-import path from 'path';     // <--- 1. IMPORTAR PATH (Viene con Node)
-import { fileURLToPath } from 'url'; // Necesario para __dirname en ES Modules
-//import { abrirDB, inicializarDB } from './db.js'; // Importamos nuestra DB Usando SQLite
-import { query, inicializarDB } from './db.js'; // Importamos nuestra DB Usando PostgreSQL
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { query, inicializarDB } from './db.js'; // DB PostgreSQL
 
 // Truco para obtener __dirname en modulos modernos
 const __filename = fileURLToPath(import.meta.url);
@@ -16,16 +15,15 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// 2. SERVIR ARCHIVOS ESTÁTICOS (Para que http://localhost:3000/images/foto.jpg funcione)
+// Servir archivos estáticos
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 
-// 3. CONFIGURACIÓN DE MULTER (Dónde y cómo guardar)
+// Configuración de Multer
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, 'public/images'); // Carpeta destino
+        cb(null, 'public/images');
     },
     filename: (req, file, cb) => {
-        // Generamos un nombre único: timestamp + extensión original (ej: 1283123-foto.jpg)
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, uniqueSuffix + path.extname(file.originalname));
     }
@@ -33,30 +31,21 @@ const storage = multer.diskStorage({
 
 const upload = multer({ storage: storage });
 
-// INICIALIZAMOS LA DB AL ARRANCAR
+// Inicializar DB
 inicializarDB();
 
-// RUTAS CON SQL REAL
+// --- RUTAS ---
 
-// A. Obtener TODOS (SELECT)
-// A. Obtener productos (Con filtro opcional)
-// ... tus imports y config de Multer siguen igual ...
-
-// INICIALIZAR
-inicializarDB();
-
-// A. Obtener TODOS (GET)
+// A. Obtener TODOS
 app.get('/api/productos', async (req, res) => {
     try {
         const busqueda = req.query.q;
         if (busqueda) {
-            // En Postgres usamos $1, $2 en lugar de ?
-            // ILIKE es como LIKE pero ignora mayúsculas/minúsculas (Mejor que SQLite)
             const resultado = await query(
                 'SELECT * FROM productos WHERE nombre ILIKE $1',
                 [`%${busqueda}%`]
             );
-            res.json(resultado.rows); // Postgres devuelve los datos en .rows
+            res.json(resultado.rows);
         } else {
             const resultado = await query('SELECT * FROM productos');
             res.json(resultado.rows);
@@ -66,7 +55,7 @@ app.get('/api/productos', async (req, res) => {
     }
 });
 
-// B. Obtener UNO (GET :id)
+// B. Obtener UNO
 app.get('/api/productos/:id', async (req, res) => {
     try {
         const id = req.params.id;
@@ -82,20 +71,20 @@ app.get('/api/productos/:id', async (req, res) => {
     }
 });
 
-// C. Crear (POST)
+// C. Crear (POST) - CORREGIDO AQUI 🔴
 app.post('/api/productos', upload.single('imagen'), async (req, res) => {
     try {
         const { nombre, precio, descripcion, categoria } = req.body;
-        // let imagenUrl = null;
-        //if (req.file) imagenUrl = `http://localhost:3000/images/${req.file.filename}`;
 
         let imagenUrl = null;
         if (req.file) {
-            // req.get('host') obtiene automáticamente "localhost:3000" o "tu-api.onrender.com"
-            const urlBase = `${req.protocol}://${req.get('host')}`;
+            // 👇👇👇 AQUI TIENES QUE PONER TU URL REAL DE RENDER 👇👇👇
+            const urlBase = 'https://api-mi-ecommerce.onrender.com'; 
+            // 👆👆👆 CAMBIA ESTO POR TU URL EXACTA (SIN BARRA AL FINAL)
+            
             imagenUrl = `${urlBase}/images/${req.file.filename}`;
         }
-        // RETURNING * nos devuelve el producto creado inmediatamente
+
         const resultado = await query(
             `INSERT INTO productos (nombre, precio, descripcion, categoria, imagen) 
              VALUES ($1, $2, $3, $4, $5) RETURNING *`,
@@ -108,7 +97,7 @@ app.post('/api/productos', upload.single('imagen'), async (req, res) => {
     }
 });
 
-// D. Eliminar (DELETE)
+// D. Eliminar
 app.delete('/api/productos/:id', async (req, res) => {
     try {
         const id = req.params.id;
@@ -123,19 +112,21 @@ app.delete('/api/productos/:id', async (req, res) => {
     }
 });
 
-// E. Actualizar (PUT)
+// E. Actualizar (PUT) - CORREGIDO AQUI 🔴
 app.put('/api/productos/:id', upload.single('imagen'), async (req, res) => {
     try {
         const id = req.params.id;
         const { nombre, precio, descripcion, categoria } = req.body;
 
         let sql = '';
-        let imagenUrl = null;
         let params = [];
 
         if (req.file) {
-            const urlBase = `${req.protocol}://${req.get('host')}`;
-            imagenUrl = `${urlBase}/images/${req.file.filename}`;
+            // 👇👇👇 AQUI TAMBIEN 👇👇👇
+            const urlBase = 'https://api-mi-ecommerce.onrender.com';
+            // 👆👆👆 TU URL DE RENDER
+            
+            const imagenUrl = `${urlBase}/images/${req.file.filename}`;
             sql = `UPDATE productos SET nombre=$1, precio=$2, descripcion=$3, categoria=$4, imagen=$5 WHERE id=$6`;
             params = [nombre, precio, descripcion, categoria, imagenUrl, id];
         } else {
@@ -156,8 +147,6 @@ app.put('/api/productos/:id', upload.single('imagen'), async (req, res) => {
     }
 });
 
-
-
 app.listen(PORT, () => {
-    console.log(`🔥 Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`🔥 Servidor corriendo en puerto ${PORT}`);
 });

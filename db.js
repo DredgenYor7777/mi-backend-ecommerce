@@ -1,39 +1,43 @@
 import pg from 'pg';
-import dotenv from 'dotenv';
+import 'dotenv/config';
 
-// Cargar las variables del archivo .env
-dotenv.config();
+const { Pool } = pg;
 
-// Creamos el "Pool" de conexiones (Un grupo de conexiones listas para usar)
-const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Necesario para Neon
-  }
-});
+// 👇 DETECTAMOS EL ENTORNO
+// Si NODE_ENV es 'production' (Render), usamos SSL.
+// Si es 'development' (Tu PC), NO usamos SSL.
+const isProduction = process.env.NODE_ENV === 'production';
 
-// Función para obtener conexión y hacer consultas
+const connectionConfig = {
+    connectionString: process.env.DATABASE_URL,
+    // 👇 LA MAGIA: SSL condicional
+    ssl: isProduction ? { rejectUnauthorized: false } : false 
+};
+
+export const pool = new Pool(connectionConfig);
+
 export const query = (text, params) => pool.query(text, params);
 
-// Inicializar la tabla (Sintaxis PostgreSQL)
-export async function inicializarDB() {
-  try {
-    console.log("🔌 Conectando a PostgreSQL en la nube...");
-    
-    // SERIAL es el equivalente a AUTOINCREMENT en Postgres
-    await query(`
-      CREATE TABLE IF NOT EXISTS productos (
-        id SERIAL PRIMARY KEY,
-        nombre TEXT NOT NULL,
-        precio NUMERIC NOT NULL,
-        descripcion TEXT,
-        categoria TEXT,
-        imagen TEXT
-      )
-    `);
+export const inicializarDB = async () => {
+    try {
+        await pool.query('SELECT NOW()');
+        console.log(`✅ Base de Datos conectada (${isProduction ? 'Nube ☁️' : 'Local 🏠'})`);
 
-    console.log("✅ Tabla 'productos' verificada en la nube.");
-  } catch (error) {
-    console.error("❌ Error conectando a la DB:", error);
-  }
-}
+        // Crear tabla si no existe (Vital para tu nueva BD vacía)
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS productos (
+                id SERIAL PRIMARY KEY,
+                nombre VARCHAR(255) NOT NULL,
+                precio NUMERIC(10, 2) NOT NULL,
+                descripcion TEXT,
+                categoria VARCHAR(100),
+                imagen TEXT,
+                fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log("✅ Tabla 'productos' verificada.");
+
+    } catch (error) {
+        console.error("❌ Error conectando a la DB:", error);
+    }
+};

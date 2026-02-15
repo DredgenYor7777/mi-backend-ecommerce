@@ -2,8 +2,12 @@ import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
 import path from 'path';
+
 import { fileURLToPath } from 'url';
 import { query, inicializarDB } from './db.js'; // DB PostgreSQL
+import { v2 as cloudinary } from 'cloudinary'; // <--- NUEVO
+import { CloudinaryStorage } from 'multer-storage-cloudinary'; // <--- NUEVO
+import 'dotenv/config'; // <--- ASEGURATE DE QUE ESTE ESTE PRESENTE
 
 // Truco para obtener __dirname en modulos modernos
 const __filename = fileURLToPath(import.meta.url);
@@ -19,7 +23,7 @@ app.use(express.json());
 app.use('/images', express.static(path.join(__dirname, 'public/images')));
 
 // Configuración de Multer
-const storage = multer.diskStorage({
+/**const storage = multer.diskStorage({
     destination: (req, file, cb) => {
         cb(null, 'public/images');
     },
@@ -27,6 +31,24 @@ const storage = multer.diskStorage({
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
         cb(null, uniqueSuffix + path.extname(file.originalname));
     }
+});**/
+
+//const upload = multer({ storage: storage }); configuracion de multer
+
+// Configuración de Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Configuración de Multer para Cloudinary
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'mi_ecommerce_productos', // Nombre de la carpeta en tu nube
+        allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+    },
 });
 
 const upload = multer({ storage: storage });
@@ -77,13 +99,19 @@ app.post('/api/productos', upload.single('imagen'), async (req, res) => {
         const { nombre, precio, descripcion, categoria } = req.body;
 
         let imagenUrl = null;
+
+        // MAGIA: Cloudinary nos da la URL directa aquí 👇
+        if (req.file) {
+            imagenUrl = req.file.path; 
+        }
+        /** 
         if (req.file) {
             // 👇👇👇 AQUI TIENES QUE PONER TU URL REAL DE RENDER 👇👇👇
             const urlBase = 'https://api-mi-ecommerce.onrender.com'; 
             // 👆👆👆 CAMBIA ESTO POR TU URL EXACTA (SIN BARRA AL FINAL)
             
             imagenUrl = `${urlBase}/images/${req.file.filename}`;
-        }
+        }*/
 
         const resultado = await query(
             `INSERT INTO productos (nombre, precio, descripcion, categoria, imagen) 
@@ -123,10 +151,12 @@ app.put('/api/productos/:id', upload.single('imagen'), async (req, res) => {
 
         if (req.file) {
             // 👇👇👇 AQUI TAMBIEN 👇👇👇
-            const urlBase = 'https://api-mi-ecommerce.onrender.com';
+            //const urlBase = 'https://api-mi-ecommerce.onrender.com';
             // 👆👆👆 TU URL DE RENDER
             
-            const imagenUrl = `${urlBase}/images/${req.file.filename}`;
+            imagenUrl = req.file.path; // <--- ¡Así de simple! usando cloudinary
+            //const imagenUrl = `${urlBase}/images/${req.file.filename}`;
+
             sql = `UPDATE productos SET nombre=$1, precio=$2, descripcion=$3, categoria=$4, imagen=$5 WHERE id=$6`;
             params = [nombre, precio, descripcion, categoria, imagenUrl, id];
         } else {

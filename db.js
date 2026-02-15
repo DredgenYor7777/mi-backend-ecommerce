@@ -23,7 +23,7 @@ export const inicializarDB = async () => {
         await pool.query('SELECT NOW()');
         console.log(`✅ Base de Datos conectada (${isProduction ? 'Nube ☁️' : 'Local 🏠'})`);
 
-        // Crear tabla si no existe (Vital para tu nueva BD vacía)
+        // --- 1. Tabla de PRODUCTOS ---
         await pool.query(`
             CREATE TABLE IF NOT EXISTS productos (
                 id SERIAL PRIMARY KEY,
@@ -36,6 +36,19 @@ export const inicializarDB = async () => {
             );
         `);
         console.log("✅ Tabla 'productos' verificada.");
+
+        // --- 2. Tabla de USUARIOS (NUEVO) ---
+        // Esta es la que necesitamos para el Login y Registro
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS users (
+                id SERIAL PRIMARY KEY,
+                email VARCHAR(255) UNIQUE NOT NULL,
+                password VARCHAR(255) NOT NULL,
+                role VARCHAR(50) DEFAULT 'user',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log("✅ Tabla 'users' verificada.");
 
     } catch (error) {
         console.error("❌ Error conectando a la DB:", error);

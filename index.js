@@ -9,6 +9,10 @@ import { v2 as cloudinary } from 'cloudinary';
 import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import 'dotenv/config';
 
+// Autenticación
+import bcrypt from 'bcryptjs'; // Para encriptar contraseñas
+import jwt from 'jsonwebtoken'; // Para crear la "pulsera" de acceso
+
 // Configuración de rutas de archivos (__dirname)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -70,6 +74,27 @@ const upload = multer({ storage: storage });
 // Inicializar DB
 inicializarDB();
 
+// --- MIDDLEWARE DE SEGURIDAD (El Cadenero) 👮‍♂️ ---
+const verificarToken = (req, res, next) => {
+    // 1. Buscar el token en las cabeceras
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Formato: "Bearer TOKEN"
+
+    if (!token) {
+        return res.status(401).json({ error: "Acceso denegado. No hay token." });
+    }
+
+    try {
+        // 2. Verificar el token
+        // NOTA: Usa la misma clave secreta que en el login
+        const verificado = jwt.verify(token, process.env.JWT_SECRET || 'secreto_super_secreto');
+        req.user = verificado; // Guardamos los datos del usuario en la petición
+        next(); // ¡Pase usted!
+    } catch (error) {
+        res.status(400).json({ error: "Token inválido o expirado." });
+    }
+};
+
 // --- RUTAS ---
 
 // A. Obtener TODOS
@@ -105,7 +130,7 @@ app.get('/api/productos/:id', async (req, res) => {
 });
 
 // C. Crear (POST) - Lógica Híbrida de URL
-app.post('/api/productos', upload.single('imagen'), async (req, res) => {
+app.post('/api/productos', verificarToken, upload.single('imagen'), async (req, res) => {
     try {
         const { nombre, precio, descripcion, categoria } = req.body;
         let imagenUrl = null;
@@ -133,7 +158,7 @@ app.post('/api/productos', upload.single('imagen'), async (req, res) => {
 });
 
 // D. Eliminar
-app.delete('/api/productos/:id', async (req, res) => {
+app.delete('/api/productos/:id', verificarToken, async (req, res) => {
     try {
         const { id } = req.params;
         const resultado = await query('DELETE FROM productos WHERE id = $1 RETURNING id', [id]);
@@ -148,7 +173,7 @@ app.delete('/api/productos/:id', async (req, res) => {
 });
 
 // E. Actualizar (PUT) - Lógica Híbrida de URL
-app.put('/api/productos/:id', upload.single('imagen'), async (req, res) => {
+app.put('/api/productos/:id', verificarToken,upload.single('imagen'), async (req, res) => {
     try {
         const { id } = req.params;
         const { nombre, precio, descripcion, categoria } = req.body;
@@ -179,6 +204,95 @@ app.put('/api/productos/:id', upload.single('imagen'), async (req, res) => {
         }
 
         res.json({ mensaje: "Producto actualizado" });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
+
+
+// --- RUTAS DE AUTENTICACIÓN ---
+
+// F. Registro de Usuario (Sign Up)
+app.post('/api/auth/register', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // 1. Validar que vengan los datos
+        if (!email || !password) {
+            return res.status(400).json({ error: "Email y contraseña son obligatorios" });
+        }
+
+        // 2. Verificar si el usuario ya existe
+        const usuarioExistente = await query('SELECT * FROM users WHERE email = $1', [email]);
+        if (usuarioExistente.rows.length > 0) {
+            return res.status(400).json({ error: "El email ya está registrado" });
+        }
+
+        // 3. Encriptar la contraseña (Hashing) 🔒
+        // El número 10 es el "costo" (qué tan difícil es romperla).
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt);
+
+        // 4. Guardar en la Base de Datos
+        const nuevoUsuario = await query(
+            'INSERT INTO users (email, password) VALUES ($1, $2) RETURNING id, email, role',
+            [email, hashedPassword]
+        );
+
+        res.status(201).json({
+            mensaje: "Usuario registrado con éxito",
+            usuario: nuevoUsuario.rows[0]
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+    
+});
+
+
+// G. Iniciar Sesión (Login)
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { email, password } = req.body;
+
+        // 1. Validar que vengan los datos
+        if (!email || !password) {
+            return res.status(400).json({ error: "Email y contraseña son obligatorios" });
+        }
+
+        // 2. Buscar al usuario
+        const resultado = await query('SELECT * FROM users WHERE email = $1', [email]);
+        if (resultado.rows.length === 0) {
+            return res.status(400).json({ error: "Credenciales inválidas" });
+        }
+        const usuario = resultado.rows[0];
+
+        // 3. Verificar contraseña (comparar texto plano con encriptada) 🔒
+        const passwordValida = await bcrypt.compare(password, usuario.password);
+        if (!passwordValida) {
+            return res.status(400).json({ error: "Credenciales inválidas" });
+        }
+
+        // 4. Generar el Token (JWT) 🎫
+        // Este token contiene el ID y el ROL del usuario, y expira en 1 hora.
+        // IMPORTANTE: En producción, usa una variable de entorno para 'secreto_super_secreto'
+        const token = jwt.sign(
+            { id: usuario.id, email: usuario.email, role: usuario.role },
+            process.env.JWT_SECRET || 'secreto_super_secreto', 
+            { expiresIn: '1h' }
+        );
+
+        res.json({
+            mensaje: "Inicio de sesión exitoso",
+            token: token,
+            usuario: {
+                id: usuario.id,
+                email: usuario.email,
+                role: usuario.role
+            }
+        });
 
     } catch (error) {
         res.status(500).json({ error: error.message });

@@ -16,8 +16,6 @@ const connectionConfig = {
 
 export const pool = new Pool(connectionConfig);
 
-export const pool = new Pool(connectionConfig);
-
 export const query = (text, params) => pool.query(text, params);
 
 export const inicializarDB = async () => {

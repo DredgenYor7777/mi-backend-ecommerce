@@ -21,7 +21,7 @@ export const query = (text, params) => pool.query(text, params);
 export const inicializarDB = async () => {
     try {
         await pool.query('SELECT NOW()');
-        console.log(`✅ Base de Datos conectada (${isProduction ? 'Nube ☁️' : 'Local 🏠'})`);
+        console.log(`✅ Base de Datos conectada (${process.env.DATABASE_URL.includes('localhost') ? 'Local 🏠' : 'Nube ☁️'})`);
 
         // --- 1. Tabla de PRODUCTOS ---
         await pool.query(`
@@ -37,8 +37,7 @@ export const inicializarDB = async () => {
         `);
         console.log("✅ Tabla 'productos' verificada.");
 
-        // --- 2. Tabla de USUARIOS (NUEVO) ---
-        // Esta es la que necesitamos para el Login y Registro
+        // --- 2. Tabla de USUARIOS ---
         await pool.query(`
             CREATE TABLE IF NOT EXISTS users (
                 id SERIAL PRIMARY KEY,
@@ -49,6 +48,29 @@ export const inicializarDB = async () => {
             );
         `);
         console.log("✅ Tabla 'users' verificada.");
+
+        // --- 3. Tabla de CARRITO (LA QUE FALTABA) ---
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS carrito (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                producto_id INTEGER REFERENCES productos(id) ON DELETE CASCADE,
+                cantidad INTEGER DEFAULT 1
+            );
+        `);
+        console.log("✅ Tabla 'carrito' verificada.");
+
+        // --- 4. Tabla de PEDIDOS (PARA EL PERFIL DEL CLIENTE) ---
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS pedidos (
+                id SERIAL PRIMARY KEY,
+                usuario_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+                total NUMERIC(10, 2) NOT NULL,
+                estado VARCHAR(50) DEFAULT 'pagado',
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log("✅ Tabla 'pedidos' verificada.");
 
     } catch (error) {
         console.error("❌ Error conectando a la DB:", error);

@@ -536,8 +536,8 @@ app.post('/api/crear-sesion-checkout', verificarToken, async (req, res) => {
             payment_method_types: ['card'],
             line_items: lineItems,
             mode: 'payment',
-            success_url: `http://localhost:5173/pago-exitoso?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `http://localhost:5173/carrito`,
+            success_url: `${API_URL}/pago-exitoso?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${API_URL}/carrito`,
             client_reference_id: pedido_id.toString(), // 👈 ¡CLAVE! Enlazamos Stripe con tu BD
         });
 
@@ -640,6 +640,7 @@ app.get('/api/mis-pedidos', verificarToken, async (req, res) => {
         res.status(500).json({ error: "Error al cargar el historial de pedidos" });
     }
 });
+
 
 app.listen(PORT, () => {
     console.log(`🔥 Servidor corriendo en puerto ${PORT}`);

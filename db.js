@@ -49,16 +49,29 @@ export const inicializarDB = async () => {
         `);
         console.log("✅ Tabla 'users' verificada.");
 
-        // --- 3. Tabla de CARRITO (LA QUE FALTABA) ---
+// --- 3. Tabla de CARRITO ---
         await pool.query(`
             CREATE TABLE IF NOT EXISTS carrito (
                 id SERIAL PRIMARY KEY,
                 usuario_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 producto_id INTEGER REFERENCES productos(id) ON DELETE CASCADE,
-                cantidad INTEGER DEFAULT 1
+                cantidad INTEGER DEFAULT 1,
+                UNIQUE (usuario_id, producto_id) 
             );
         `);
-        console.log("✅ Tabla 'carrito' verificada.");
+        
+        // 🔧 PARCHE AUTOMÁTICO: Le inyectamos el candado a la tabla en Neon
+        try {
+            await pool.query(`
+                ALTER TABLE carrito 
+                ADD CONSTRAINT carrito_usuario_producto_key UNIQUE (usuario_id, producto_id);
+            `);
+            console.log("✅ Candado UNIQUE agregado al carrito exitosamente.");
+        } catch (e) {
+            // Si el candado ya se había puesto antes, Postgres ignora este paso
+        }
+        console.log("✅ Tabla 'carrito' verificada y blindada.");
+        
 
         // --- 4. Tabla de PEDIDOS (PARA EL PERFIL DEL CLIENTE) ---
         await pool.query(`

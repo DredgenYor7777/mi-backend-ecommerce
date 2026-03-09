@@ -74,16 +74,29 @@ export const inicializarDB = async () => {
 
 
         // --- 4. Tabla de PEDIDOS (PARA EL PERFIL DEL CLIENTE) ---
+ 
         await pool.query(`
             CREATE TABLE IF NOT EXISTS pedidos (
                 id SERIAL PRIMARY KEY,
                 usuario_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
                 total NUMERIC(10, 2) NOT NULL,
                 estado VARCHAR(50) DEFAULT 'pagado',
-                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                creado_en TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                stripe_session_id VARCHAR(255) 
             );
         `);
-        console.log("✅ Tabla 'pedidos' verificada.");
+        
+        
+        try {
+            await pool.query(`
+                ALTER TABLE pedidos 
+                ADD COLUMN stripe_session_id VARCHAR(255);
+            `);
+            console.log("✅ Columna 'stripe_session_id' agregada exitosamente.");
+        } catch (e) {
+            
+        }
+        console.log("✅ Tabla 'pedidos' verificada y lista para Stripe.");
 
 
         // --- 5. Tabla de DETALLES DE PEDIDO (PARA EL RECIBO DE STRIPE) ---

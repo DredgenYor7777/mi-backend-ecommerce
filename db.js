@@ -10,9 +10,11 @@ const isProduction = process.env.NODE_ENV === 'production';
 
 const connectionConfig = {
     connectionString: process.env.DATABASE_URL,
-    // 👇 LA MAGIA: SSL condicional
-    ssl: isProduction ? { rejectUnauthorized: false } : false 
+    // Si la URL tiene 'localhost', apagamos SSL. Si no (es Neon), lo forzamos prendido.
+    ssl: process.env.DATABASE_URL.includes('localhost') ? false : { rejectUnauthorized: false }
 };
+
+export const pool = new Pool(connectionConfig);
 
 export const pool = new Pool(connectionConfig);
 

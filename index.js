@@ -39,7 +39,7 @@ const isDevelopment = process.env.NODE_ENV === 'development';
 if (isDevelopment) {
     // 🏠 MODO SANDBOX (Local): Guardar en disco duro
     console.log("💾 MODO DESARROLLO: Configurando almacenamiento local...");
-    
+
     storage = multer.diskStorage({
         destination: (req, file, cb) => {
             const pathImages = path.join(__dirname, 'public/images');
@@ -109,7 +109,7 @@ const verificarAdmin = async (req, res, next) => {
     try {
         // Tu middleware verificarToken ya nos dejó el ID en req.user.id
         // Reemplaza la línea que dice "const usuarioId = req.user.id;" por esta:
-        const usuarioId = req.user?.id || req.usuario?.id; 
+        const usuarioId = req.user?.id || req.usuario?.id;
 
         // Vamos directo a la Base de Datos a revisar su contrato
         const resultado = await query('SELECT * FROM users WHERE id = $1', [usuarioId]);
@@ -141,11 +141,11 @@ const verificarAdmin = async (req, res, next) => {
 app.get('/api/productos', async (req, res) => {
     try {
         const busqueda = req.query.q;
-        const sql = busqueda 
-            ? 'SELECT * FROM productos WHERE nombre ILIKE $1' 
+        const sql = busqueda
+            ? 'SELECT * FROM productos WHERE nombre ILIKE $1'
             : 'SELECT * FROM productos';
         const params = busqueda ? [`%${busqueda}%`] : [];
-        
+
         const resultado = await query(sql, params);
         res.json(resultado.rows);
     } catch (error) {
@@ -225,7 +225,7 @@ app.put('/api/productos/:id', verificarToken, verificarAdmin, upload.single('ima
         if (req.file) {
             let imagenUrl;
             // Ojo: Asegúrate de que 'isDevelopment' exista en tu archivo, si no, pon true temporalmente
-            if (process.env.NODE_ENV !== 'production') { 
+            if (process.env.NODE_ENV !== 'production') {
                 imagenUrl = `${req.protocol}://${req.get('host')}/images/${req.file.filename}`;
             } else {
                 imagenUrl = req.file.path;
@@ -290,7 +290,7 @@ app.post('/api/auth/register', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
-    
+
 });
 
 
@@ -322,7 +322,7 @@ app.post('/api/auth/login', async (req, res) => {
         // IMPORTANTE: En producción, usa una variable de entorno para 'secreto_super_secreto'
         const token = jwt.sign(
             { id: usuario.id, email: usuario.email, role: usuario.role },
-            process.env.JWT_SECRET || 'secreto_super_secreto', 
+            process.env.JWT_SECRET || 'secreto_super_secreto',
             { expiresIn: '1h' }
         );
 
@@ -376,7 +376,7 @@ app.post('/api/auth/register', async (req, res) => {
 
 // AGREGAR PRODUCTO AL CARRITO
 app.post('/api/carrito', verificarToken, async (req, res) => {
-    const usuario_id = req.user.id; 
+    const usuario_id = req.user.id;
     const { producto_id, cantidad } = req.body;
 
     try {
@@ -388,13 +388,13 @@ app.post('/api/carrito', verificarToken, async (req, res) => {
             DO UPDATE SET cantidad = carrito.cantidad + EXCLUDED.cantidad
             RETURNING *;
         `;
-        
+
         // ✅ CORRECCIÓN: Usamos 'query' en lugar de 'pool.query'
         const resultado = await query(sql, [usuario_id, producto_id, cantidad || 1]);
-        
-        res.status(200).json({ 
-            mensaje: "Producto guardado en tu carrito de la nube ☁️", 
-            item: resultado.rows[0] 
+
+        res.status(200).json({
+            mensaje: "Producto guardado en tu carrito de la nube ☁️",
+            item: resultado.rows[0]
         });
 
     } catch (error) {
@@ -416,11 +416,11 @@ app.get('/api/carrito', verificarToken, async (req, res) => {
             JOIN productos p ON c.producto_id = p.id
             WHERE c.usuario_id = $1;
         `;
-        
+
         // ✅ CORRECCIÓN: Usamos 'query' en lugar de 'pool.query'
         const resultado = await query(sql, [usuario_id]);
         res.status(200).json(resultado.rows);
-        
+
     } catch (error) {
         console.error("Error al obtener carrito:", error);
         res.status(500).json({ mensaje: "Error al cargar el carrito" });
@@ -435,7 +435,7 @@ app.delete('/api/carrito/:producto_id', verificarToken, async (req, res) => {
     try {
         // Borramos el producto específico para este usuario
         await query(
-            'DELETE FROM carrito WHERE usuario_id = $1 AND producto_id = $2', 
+            'DELETE FROM carrito WHERE usuario_id = $1 AND producto_id = $2',
             [usuario_id, producto_id]
         );
         res.json({ mensaje: "Producto eliminado de la base de datos" });
@@ -470,15 +470,15 @@ app.put('/api/carrito/:producto_id', verificarToken, async (req, res) => {
             WHERE usuario_id = $2 AND producto_id = $3
             RETURNING *;
         `;
-        
+
         // Ejecutamos el query pasándole la nueva cantidad, el usuario y el producto
         const resultado = await query(sql, [cantidad, usuario_id, producto_id]);
-        
+
         if (resultado.rowCount === 0) {
             return res.status(404).json({ mensaje: "Producto no encontrado en tu carrito" });
         }
 
-        res.status(200).json({ 
+        res.status(200).json({
             mensaje: "Cantidad actualizada correctamente 🔄",
             item: resultado.rows[0]
         });
@@ -526,7 +526,7 @@ app.post('/api/crear-sesion-checkout', verificarToken, async (req, res) => {
             price_data: {
                 currency: 'mxn',
                 product_data: { name: item.nombre },
-                unit_amount: Math.round(item.precio * 100), 
+                unit_amount: Math.round(item.precio * 100),
             },
             quantity: item.cantidad || 1,
         }));
@@ -536,8 +536,8 @@ app.post('/api/crear-sesion-checkout', verificarToken, async (req, res) => {
             payment_method_types: ['card'],
             line_items: lineItems,
             mode: 'payment',
-            success_url: `${API_URL}/pago-exitoso?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${API_URL}/carrito`,
+            success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/pago-exitoso?session_id={CHECKOUT_SESSION_ID}`,
+            cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/carrito`,
             client_reference_id: pedido_id.toString(), // 👈 ¡CLAVE! Enlazamos Stripe con tu BD
         });
 
@@ -604,7 +604,7 @@ app.get('/api/admin/pedidos', verificarToken, async (req, res) => {
 // 2. MARCAR PEDIDO COMO ENVIADO 🚚
 app.put('/api/admin/pedidos/:id/estado', verificarToken, async (req, res) => {
     const { id } = req.params;
-    const { estado } = req.body; 
+    const { estado } = req.body;
 
     try {
         await query('UPDATE pedidos SET estado = $1 WHERE id = $2', [estado, id]);
@@ -624,7 +624,7 @@ app.put('/api/admin/pedidos/:id/estado', verificarToken, async (req, res) => {
 app.get('/api/mis-pedidos', verificarToken, async (req, res) => {
     try {
         // El token ya nos dice quién es exactamente el usuario
-        const usuario_id = req.user.id; 
+        const usuario_id = req.user.id;
 
         // Buscamos SOLO los pedidos que le pertenecen a este ID
         const resultado = await query(`

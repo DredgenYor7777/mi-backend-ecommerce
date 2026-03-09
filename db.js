@@ -71,7 +71,7 @@ export const inicializarDB = async () => {
             // Si el candado ya se había puesto antes, Postgres ignora este paso
         }
         console.log("✅ Tabla 'carrito' verificada y blindada.");
-        
+
 
         // --- 4. Tabla de PEDIDOS (PARA EL PERFIL DEL CLIENTE) ---
         await pool.query(`
@@ -84,6 +84,19 @@ export const inicializarDB = async () => {
             );
         `);
         console.log("✅ Tabla 'pedidos' verificada.");
+
+
+        // --- 5. Tabla de DETALLES DE PEDIDO (PARA EL RECIBO DE STRIPE) ---
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS detalles_pedido (
+                id SERIAL PRIMARY KEY,
+                pedido_id INTEGER REFERENCES pedidos(id) ON DELETE CASCADE,
+                producto_id INTEGER REFERENCES productos(id) ON DELETE CASCADE,
+                cantidad INTEGER NOT NULL,
+                precio_unitario NUMERIC(10, 2) NOT NULL
+            );
+        `);
+        console.log("✅ Tabla 'detalles_pedido' verificada.");
 
     } catch (error) {
         console.error("❌ Error conectando a la DB:", error);
